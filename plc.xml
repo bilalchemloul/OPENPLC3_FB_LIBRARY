@@ -1,0 +1,1823 @@
+<?xml version='1.0' encoding='utf-8'?>
+<project xmlns:ns1="http://www.plcopen.org/xml/tc6_0201" xmlns:xhtml="http://www.w3.org/1999/xhtml" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.plcopen.org/xml/tc6_0201">
+  <fileHeader companyName="Unknown" productName="Unnamed" productVersion="1" creationDateTime="2026-10-09T17:58:22"/>
+  <contentHeader name="Unnamed" modificationDateTime="2026-10-11T09:02:26">
+    <coordinateInfo>
+      <fbd>
+        <scaling x="10" y="10"/>
+      </fbd>
+      <ld>
+        <scaling x="10" y="10"/>
+      </ld>
+      <sfc>
+        <scaling x="10" y="10"/>
+      </sfc>
+    </coordinateInfo>
+  </contentHeader>
+  <types>
+    <dataTypes/>
+    <pous>
+      <pou name="PID_SAFE" pouType="functionBlock">
+        <interface>
+          <inputVars>
+            <variable name="Enable">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="FALSE"/>
+              </initialValue>
+            </variable>
+            <variable name="SP">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="1000.0"/>
+              </initialValue>
+            </variable>
+            <variable name="PV">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="Kp">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="Ki">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="Kd">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="Out_Max">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="100.0"/>
+              </initialValue>
+            </variable>
+            <variable name="Out_Min">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="1.0"/>
+              </initialValue>
+            </variable>
+          </inputVars>
+          <outputVars>
+            <variable name="Pidout">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="1.0"/>
+              </initialValue>
+            </variable>
+            <variable name="ERROR_OUT">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+          </outputVars>
+          <localVars>
+            <variable name="ERROR">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="ERROR_PREV">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="P_TERM">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="I_TERM">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="D_TERM">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="PIDOUT_TEMP">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="TS_SAFE">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.001"/>
+              </initialValue>
+            </variable>
+          </localVars>
+          <inputVars>
+            <variable name="TS">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.001"/>
+              </initialValue>
+            </variable>
+          </inputVars>
+          <localVars>
+            <variable name="RT">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="RT_COUNTING">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+          </localVars>
+        </interface>
+        <body>
+          <ST>
+            <xhtml:p><![CDATA[    IF Enable THEN
+        (* 1. Safety check for Sample Time Ts *)
+        IF TS < 0.001 THEN
+            Ts_safe := 0.001;
+        ELSE
+            Ts_safe := Ts;
+        END_IF;
+
+        (* 2. Current Error Calculation *)
+        error := SP - PV;
+        Error_Out := error;
+
+        (* 3. Proportional Term *)
+        P_TERM := Kp * error;
+
+        (* 4. Derivative Term *)
+        IF Ts_safe > 0.001 THEN
+            D_term := Kd * (error - error_prev) / Ts_safe;
+        ELSE
+            D_term := 0.0;
+        END_IF;
+
+        (* 5. Integral Term with Anti-Windup *)
+        I_term := I_term + (Ki * error * Ts_safe);
+
+        IF I_term > Out_Max THEN
+            I_term := Out_Max;
+        ELSIF I_term < Out_Min THEN
+            I_term := Out_Min;
+        END_IF;
+
+        (* 6. Output Calculation & Clamping *)
+        Pidout_temp := P_TERM + I_term + D_term;
+
+        IF Pidout_temp > Out_Max THEN
+            Pidout := Out_Max;
+        ELSIF Pidout_temp < Out_Min THEN
+            Pidout := Out_Min;
+        ELSE
+            Pidout := Pidout_temp;
+        END_IF;
+
+        (* 7. Save Error for Next Cycle *)
+        error_prev := error;
+
+    ELSE
+        (* Reset logic when Disabled *)
+        I_term := 0.0;
+        error_prev := 0.0;
+        Pidout := 0.0;
+        Error_Out := 0.0;
+    END_IF;
+    
+    
+IF (NOT Enable) THEN
+    RT := 0.0;
+    
+    RT_Counting := TRUE; (* Reset and prepare to count on next start *)
+
+ELSIF Enable AND RT_Counting THEN
+    (* 2. While process variable is below Setpoint, accumulate scan time *)
+    IF PV < SP THEN
+        RT := RT + TS; (* TS is your scan time, e.g., 0.001s *)
+    ELSE
+        (* 3. PV has reached or exceeded SP: Stop counting *)
+        RT_Counting := FALSE;
+    END_IF;
+END_IF;
+    ]]></xhtml:p>
+          </ST>
+        </body>
+      </pou>
+      <pou name="RELAY_TEST_AMIGO" pouType="functionBlock">
+        <interface>
+          <inputVars>
+            <variable name="START">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="FALSE"/>
+              </initialValue>
+            </variable>
+            <variable name="RESET">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="FALSE"/>
+              </initialValue>
+            </variable>
+          </inputVars>
+          <localVars>
+            <variable name="RT_Counting">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+          </localVars>
+          <inputVars>
+            <variable name="ABORT">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="FALSE"/>
+              </initialValue>
+            </variable>
+            <variable name="PV">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="SP">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="1000.0"/>
+              </initialValue>
+            </variable>
+            <variable name="TS">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="1.0"/>
+              </initialValue>
+            </variable>
+            <variable name="Relay_High">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="100.0"/>
+              </initialValue>
+            </variable>
+            <variable name="RELAY_LOW">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="HYSTERES">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="10.0"/>
+              </initialValue>
+            </variable>
+            <variable name="MX_TIM">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="30.0"/>
+              </initialValue>
+            </variable>
+          </inputVars>
+          <outputVars>
+            <variable name="Control_Out">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+          </outputVars>
+          <localVars>
+            <variable name="AMP">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="PU">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="KU">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+          </localVars>
+          <outputVars>
+            <variable name="KP">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="KI">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="KD">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="BUSY">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="TRUE"/>
+              </initialValue>
+            </variable>
+            <variable name="DONE">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="FALSE"/>
+              </initialValue>
+            </variable>
+            <variable name="ERROR">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="FALSE"/>
+              </initialValue>
+            </variable>
+            <variable name="ERROR_CODE">
+              <type>
+                <INT/>
+              </type>
+              <initialValue>
+                <simpleValue value="0"/>
+              </initialValue>
+            </variable>
+          </outputVars>
+          <localVars>
+            <variable name="STATE">
+              <type>
+                <INT/>
+              </type>
+              <initialValue>
+                <simpleValue value="0"/>
+              </initialValue>
+            </variable>
+            <variable name="TEST_TIMER">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="CYCLE_TIMER">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="CYCLE_COUNT">
+              <type>
+                <INT/>
+              </type>
+              <initialValue>
+                <simpleValue value="0"/>
+              </initialValue>
+            </variable>
+          </localVars>
+          <outputVars>
+            <variable name="RT">
+              <type>
+                <REAL/>
+              </type>
+            </variable>
+          </outputVars>
+          <localVars>
+            <variable name="T_MAX">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="1000.0"/>
+              </initialValue>
+            </variable>
+            <variable name="t_min">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="prev_PV">
+              <type>
+                <REAL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0.0"/>
+              </initialValue>
+            </variable>
+            <variable name="RELAY_STATE">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="FALSE"/>
+              </initialValue>
+            </variable>
+          </localVars>
+        </interface>
+        <body>
+          <ST>
+            <xhtml:p><![CDATA[    IF RESET THEN 
+    DONE := FALSE;
+        Control_Out := 0.0;
+        CYCLE_COUNT := 0;
+        CYCLE_TIMER := 0.0;
+        T_MAX := PV;
+        t_min := PV;
+        BUSY := TRUE;
+        START := FALSE;
+        PU := 0.0001;
+        AMP := 0.0;
+    END_IF;
+    
+    IF NOT START THEN
+        DONE := FALSE;
+        Control_Out := 0.0;
+        CYCLE_COUNT := 0;
+        CYCLE_TIMER := 0.0;
+        T_MAX := PV;
+        t_min := PV;
+    ELSIF NOT DONE THEN
+        CYCLE_TIMER := CYCLE_TIMER + TS;
+
+        (* Peak & Trough Tracking *)
+        IF PV > T_MAX THEN T_MAX := PV; END_IF;
+        IF PV < t_min THEN t_min := PV; END_IF;
+
+        (* Relay Switch *)
+        IF RELAY_STATE AND (PV >= (SP + HYSTERES)) THEN
+            RELAY_STATE := FALSE;
+        ELSIF (NOT RELAY_STATE) AND (PV <= (SP - HYSTERES)) THEN
+            RELAY_STATE := TRUE;
+        END_IF;
+
+        IF RELAY_STATE THEN Control_Out := Relay_High; 
+          ELSE Control_Out := RELAY_LOW; END_IF;
+
+        (* Detect Upward Zero-Crossing *)
+        IF (prev_PV < SP) AND (PV >= SP) THEN
+            CYCLE_COUNT := CYCLE_COUNT + 1;
+
+            IF CYCLE_COUNT = 100 THEN
+                CYCLE_TIMER := 0.0; (* Start timer for full period *)
+                T_MAX := PV;
+                t_min := PV;
+                
+            ELSIF CYCLE_COUNT = 200 THEN
+      
+                DONE := TRUE;
+                BUSY := FALSE;
+                Control_Out := 0.0;
+            END_IF;
+        END_IF;
+    END_IF;
+    PU := CYCLE_TIMER /100.0;
+    AMP := (T_MAX - t_min) / 2.0;
+    prev_PV := PV;
+    
+    
+    (* 1. Start timer on START or RESET trigger *)
+IF RESET OR (NOT START) THEN
+    RT := 0.0;
+    RT_Counting := TRUE; (* Reset and prepare to count on next start *)
+ELSIF START AND RT_Counting THEN
+    (* 2. While process variable is below Setpoint, accumulate scan time *)
+    IF PV < SP THEN
+        RT := RT + TS; (* TS is your scan time, e.g., 0.001s *)
+    ELSE
+        (* 3. PV has reached or exceeded SP: Stop counting *)
+        RT_Counting := FALSE;
+    END_IF;
+END_IF;
+
+IF AMP <= 0.001 THEN AMP := 0.001 ; END_IF;
+IF PU <= 0.001 THEN PU := 0.001 ; END_IF;
+
+KU := 400.0 /(3.1415926535 * AMP);
+KP := 0.2 * KU;
+KI := 0.4 * KU / PU;
+KD := 0.03 * KU * PU;]]></xhtml:p>
+          </ST>
+        </body>
+        <documentation>
+          <xhtml:p><![CDATA[<pou name="PID_SAFE" pouType="functionBlock">]]></xhtml:p>
+        </documentation>
+      </pou>
+      <pou name="BLINKING" pouType="functionBlock">
+        <interface>
+          <localVars>
+            <variable name="tp1">
+              <type>
+                <derived name="TP"/>
+              </type>
+            </variable>
+            <variable name="tp2">
+              <type>
+                <derived name="TP"/>
+              </type>
+            </variable>
+            <variable name="i">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="true"/>
+              </initialValue>
+            </variable>
+          </localVars>
+          <outputVars>
+            <variable name="y">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="false"/>
+              </initialValue>
+            </variable>
+          </outputVars>
+          <inputVars>
+            <variable name="prd">
+              <type>
+                <TIME/>
+              </type>
+              <initialValue>
+                <simpleValue value="t#100ms"/>
+              </initialValue>
+            </variable>
+          </inputVars>
+        </interface>
+        <body>
+          <ST>
+            <xhtml:p><![CDATA[
+ tp1(
+     IN := not i(*BOOL*),
+     PT := prd(*TIME*),
+     Q => y(*BOOL*)
+    );
+     
+ tp2 (
+     IN := not y(*BOOL*),
+     PT := prd(*TIME*),
+     Q => i(*BOOL*)
+     );
+     
+     ]]></xhtml:p>
+          </ST>
+        </body>
+      </pou>
+      <pou name="my_counter_UD" pouType="functionBlock">
+        <interface>
+          <inputVars>
+            <variable name="CU">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0"/>
+              </initialValue>
+              <documentation>
+                <xhtml:p><![CDATA[increment counter on rising edge]]></xhtml:p>
+              </documentation>
+            </variable>
+            <variable name="Reset">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0"/>
+              </initialValue>
+              <documentation>
+                <xhtml:p><![CDATA[resets counter to 0]]></xhtml:p>
+              </documentation>
+            </variable>
+            <variable name="PV">
+              <type>
+                <UDINT/>
+              </type>
+              <documentation>
+                <xhtml:p><![CDATA[Max value for the counter]]></xhtml:p>
+              </documentation>
+            </variable>
+            <variable name="SV">
+              <type>
+                <UDINT/>
+              </type>
+              <documentation>
+                <xhtml:p><![CDATA[Starting value]]></xhtml:p>
+              </documentation>
+            </variable>
+          </inputVars>
+          <outputVars>
+            <variable name="Q">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0"/>
+              </initialValue>
+              <documentation>
+                <xhtml:p><![CDATA[True when counter reaches PV]]></xhtml:p>
+              </documentation>
+            </variable>
+            <variable name="CV">
+              <type>
+                <UDINT/>
+              </type>
+              <documentation>
+                <xhtml:p><![CDATA[Current value]]></xhtml:p>
+              </documentation>
+            </variable>
+          </outputVars>
+          <localVars>
+            <variable name="is_boot">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="1"/>
+              </initialValue>
+              <documentation>
+                <xhtml:p><![CDATA[on boot]]></xhtml:p>
+              </documentation>
+            </variable>
+            <variable name="is_incremented">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="0"/>
+              </initialValue>
+              <documentation>
+                <xhtml:p><![CDATA[on boot]]></xhtml:p>
+              </documentation>
+            </variable>
+          </localVars>
+        </interface>
+        <body>
+          <ST>
+            <xhtml:p><![CDATA[IF (is_boot) Then
+  if ( SV <= PV) then
+    CV:=SV;
+  else
+  cv := 0;
+  is_boot:=0;
+  end_if;
+END_if;
+IF (Reset) Then
+  CV:=0;
+  q:=0;
+  ELSE
+    IF (CU) Then
+      if (not is_incremented and not q) then 
+        cv := cv+1;
+        is_incremented:=1;
+        if(cv = pv) then
+          q := 1;
+        end_if;
+      end_if;
+      ELSE
+        is_incremented:=0;
+    end_if;
+end_if;
+ 
+  
+    
+
+
+]]></xhtml:p>
+          </ST>
+        </body>
+      </pou>
+      <pou name="WORK_TIME" pouType="functionBlock">
+        <interface>
+          <outputVars>
+            <variable name="HOUR">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="minute">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="second">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="minofday">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="DayOfWeek">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="Day">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="MONTH">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+          </outputVars>
+          <inputVars>
+            <variable name="HOUR_EN">
+              <type>
+                <UDINT/>
+              </type>
+              <initialValue>
+                <simpleValue value="7"/>
+              </initialValue>
+            </variable>
+            <variable name="MIN_EN">
+              <type>
+                <UDINT/>
+              </type>
+              <initialValue>
+                <simpleValue value="30"/>
+              </initialValue>
+            </variable>
+            <variable name="HOUR_OUT">
+              <type>
+                <UDINT/>
+              </type>
+              <initialValue>
+                <simpleValue value="18"/>
+              </initialValue>
+            </variable>
+            <variable name="MIN_OUT">
+              <type>
+                <UDINT/>
+              </type>
+              <initialValue>
+                <simpleValue value="10"/>
+              </initialValue>
+            </variable>
+            <variable name="DAY_F">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="MONTH_F">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+          </inputVars>
+          <outputVars>
+            <variable name="time_of_work">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+          </outputVars>
+          <localVars>
+            <variable name="CURRIENT">
+              <type>
+                <derived name="RTC_EXTRACT_ud"/>
+              </type>
+            </variable>
+            <variable name="Curr_Time">
+              <type>
+                <derived name="RTC_EXTRACT_ud"/>
+              </type>
+            </variable>
+          </localVars>
+        </interface>
+        <body>
+          <ST>
+            <xhtml:p><![CDATA[(* this fb use the RTC_EXTRACT_ud fb to calculate time and date of work , 
+you can just enter entry and leave hour and it will give you currient hour ,
+ date and worktime status ,the weekends and official free days are precounted,
+you can add an exceptional free day date with day_f and month_f inputs.
+bilal chemloul great you, *)
+
+  (* Call RTC_EXTRACT_ud and assign UINT variables *)
+
+Curr_Time(
+     uiMonth =>MONTH (*UINT*),
+     uiDay =>Day (*UINT*),
+     uiDayOfWeek =>DayOfWeek (*UINT*),
+     uiHour =>HOUR (*UINT*),
+     uiMinute => minute(*UINT*),
+     uiSecond => second (*UINT*),
+     udiMinOfDay => minofday(*UDINT*));
+
+
+
+
+
+  (* 
+    Evaluate time_of_work condition:
+    Evaluates to TRUE under any of the following:
+    1. Outside working hours (HOUR < HOUR_EN or HOUR >= HOUR_OUT)
+    2. Weekend days (Friday = 5, Saturday = 6)
+    3. National and customary holidays
+  *)
+
+  IF (minofday < (HOUR_EN *60 + MIN_EN)) or (minofday >= (HOUR_out *60 + MIN_out))
+     OR (DayOfWeek = 5) OR (DayOfWeek = 6)
+     OR (Day = 5 AND MONTH = 7)     (* Independence Day *)
+     OR (Day = 1 AND MONTH = 5)     (* Labor Day *)
+     OR (Day = 1 AND MONTH = 1)     (* New Year *)
+     OR (Day = 12 AND MONTH = 1)    (* Yennayer *)
+     OR (Day = 1 AND MONTH = 11)    (* Revolution Day *)
+     OR (Day = DAY_F AND MONTH = MONTH_F) (* Dynamic holiday parameter *)
+  THEN
+      time_of_work := false;
+  ELSE
+      time_of_work := true;
+  END_IF;]]></xhtml:p>
+          </ST>
+        </body>
+      </pou>
+      <pou name="RTC_EXTRACT_ud" pouType="functionBlock">
+        <interface>
+          <outputVars>
+            <variable name="xValid">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="xNewSecond">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="dtCurrent">
+              <type>
+                <DT/>
+              </type>
+            </variable>
+            <variable name="uiYear">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="uiMonth">
+              <type>
+                <UDINT/>
+              </type>
+              <documentation>
+                <xhtml:p><![CDATA[   USINT  UINT]]></xhtml:p>
+              </documentation>
+            </variable>
+            <variable name="uiDay">
+              <type>
+                <UDINT/>
+              </type>
+              <documentation>
+                <xhtml:p><![CDATA[   USINT  UINT]]></xhtml:p>
+              </documentation>
+            </variable>
+            <variable name="uiDayOfYear">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="uiDayOfWeek">
+              <type>
+                <UDINT/>
+              </type>
+              <documentation>
+                <xhtml:p><![CDATA[   USINT  UINT]]></xhtml:p>
+              </documentation>
+            </variable>
+            <variable name="uiHour">
+              <type>
+                <UDINT/>
+              </type>
+              <documentation>
+                <xhtml:p><![CDATA[   USINT  UINT]]></xhtml:p>
+              </documentation>
+            </variable>
+            <variable name="uiMinute">
+              <type>
+                <UDINT/>
+              </type>
+              <documentation>
+                <xhtml:p><![CDATA[   USINT  UINT]]></xhtml:p>
+              </documentation>
+            </variable>
+            <variable name="uiSecond">
+              <type>
+                <UDINT/>
+              </type>
+              <documentation>
+                <xhtml:p><![CDATA[   USINT  UINT]]></xhtml:p>
+              </documentation>
+            </variable>
+            <variable name="uiDaysInMonth">
+              <type>
+                <UDINT/>
+              </type>
+              <documentation>
+                <xhtml:p><![CDATA[   USINT  UINT]]></xhtml:p>
+              </documentation>
+            </variable>
+            <variable name="uiDaysInYear">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="xIsLeapYear">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+          </outputVars>
+          <localVars>
+            <variable name="RTC_Clock">
+              <type>
+                <derived name="RTC"/>
+              </type>
+            </variable>
+            <variable name="udiEpoch">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="udiLastEpoch">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="udiDays">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="udiDoy">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+          </localVars>
+          <outputVars>
+            <variable name="udiSecOfDay">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="udiMinOfDay">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+          </outputVars>
+          <localVars>
+            <variable name="udiZ">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="udiEra">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="udiDoe">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="udiYoe">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="udiY">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="udiDoy0">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="udiMp">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="udiD">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="udiM">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+            <variable name="xFirstScan">
+              <type>
+                <BOOL/>
+              </type>
+              <initialValue>
+                <simpleValue value="TRUE"/>
+              </initialValue>
+            </variable>
+          </localVars>
+        </interface>
+        <body>
+          <ST>
+            <xhtml:p><![CDATA[(* this fb use the plc rtc to extract time and date parameters, 
+  you can modify its output variable to what you need only.
+  bilal chemloul great you, *)
+
+  (* Get current PLC time *)
+  RTC_Clock(
+      IN := FALSE,
+      CDT => dtCurrent
+  );
+
+  (* Convert current DT to seconds since 1970 *)
+  udiEpoch := DT_TO_UDINT(dtCurrent);
+
+  (* Split into days and time *)
+  udiDays := udiEpoch / 86400;
+  udiSecOfDay := udiEpoch MOD 86400;
+  udiMinOfDay := udiSecOfDay / 60;
+  (* Time (delete "1 +" if the hours advanced by 1 ) *)
+  uiHour := 1 + udiSecOfDay / 3600;
+
+  uiMinute := (udiSecOfDay MOD 3600) / 60 ;
+ 
+  uiSecond := udiSecOfDay MOD 60 ;
+ 
+  (* Day of week: 1=Monday ... 7=Sunday *)
+  uiDayOfWeek :=((udiDays + 3) MOD 7) + 1;
+
+  (* Gregorian calendar *)
+  udiZ := udiDays + 719468;
+  udiEra := udiZ / 146097;
+
+  udiDoe :=
+      udiZ - (udiEra * 146097);
+
+  udiYoe :=
+      (
+          udiDoe
+          - (udiDoe / 1460)
+          + (udiDoe / 36524)
+          - (udiDoe / 146096)
+      ) / 365;
+
+  udiY :=
+      udiYoe + (udiEra * 400);
+
+  udiDoy :=
+      udiDoe
+      - (
+          365 * udiYoe
+          + (udiYoe / 4)
+          - (udiYoe / 100)
+      );
+
+  udiMp :=
+      (5 * udiDoy + 2) / 153;
+
+  udiD :=
+      udiDoy
+      - ((153 * udiMp + 2) / 5)
+      + 1;
+
+  IF udiMp < 10 THEN
+      udiM := udiMp + 3;
+  ELSE
+      udiM := udiMp - 9;
+  END_IF;
+
+  IF udiM <= 2 THEN
+      udiY := udiY + 1;
+  END_IF;
+
+  (* Date outputs *)
+  uiYear := udiY;
+  uiMonth :=udiM;
+  uiDay := udiD;
+
+  (* Leap year *)
+  xIsLeapYear :=
+      ((uiYear MOD 4 = 0) AND (uiYear MOD 100 <> 0))
+      OR
+      (uiYear MOD 400 = 0);
+
+  (* Days in year *)
+  IF xIsLeapYear THEN
+      uiDaysInYear := 366;
+  ELSE
+      uiDaysInYear := 365;
+  END_IF;
+
+  (* Days in month *)
+  CASE uiMonth OF
+      1, 3, 5, 7, 8, 10, 12:
+          uiDaysInMonth := 31;
+
+      4, 6, 9, 11:
+          uiDaysInMonth := 30;
+
+      2:
+          IF xIsLeapYear THEN
+              uiDaysInMonth := 29;
+          ELSE
+              uiDaysInMonth := 28;
+          END_IF;
+
+      ELSE
+          uiDaysInMonth := 0;
+  END_CASE;
+
+  (* Day of year *)
+  CASE uiMonth OF
+      1:  uiDayOfYear := uiDay;
+      2:  uiDayOfYear := 31 + uiDay;
+      3:  uiDayOfYear := 59 + uiDay;
+      4:  uiDayOfYear := 90 + uiDay;
+      5:  uiDayOfYear := 120 + uiDay;
+      6:  uiDayOfYear := 151 + uiDay;
+      7:  uiDayOfYear := 181 + uiDay;
+      8:  uiDayOfYear := 212 + uiDay;
+      9:  uiDayOfYear := 243 + uiDay;
+      10: uiDayOfYear := 273 + uiDay;
+      11: uiDayOfYear := 304 + uiDay;
+      12: uiDayOfYear := 334 + uiDay;
+      ELSE
+          uiDayOfYear := 0;
+  END_CASE;
+
+  IF xIsLeapYear AND (uiMonth > 2) THEN
+      uiDayOfYear := uiDayOfYear + 1;
+  END_IF;
+
+  xValid := TRUE;]]></xhtml:p>
+          </ST>
+        </body>
+      </pou>
+      <pou name="FBs_PRESENTATION" pouType="program">
+        <interface>
+          <localVars>
+            <variable name="RTC_EXTRACT0">
+              <type>
+                <derived name="RTC_EXTRACT_ud"/>
+              </type>
+            </variable>
+            <variable name="WORK_TIME0">
+              <type>
+                <derived name="WORK_TIME"/>
+              </type>
+            </variable>
+            <variable name="functionBlock00">
+              <type>
+                <derived name="FLOWMETER_PULSE"/>
+              </type>
+            </variable>
+            <variable name="BLINKING0">
+              <type>
+                <derived name="BLINKING"/>
+              </type>
+            </variable>
+            <variable name="my_counter_UD0">
+              <type>
+                <derived name="my_counter_UD"/>
+              </type>
+            </variable>
+            <variable name="RELAY_TEST0">
+              <type>
+                <derived name="RELAY_TEST_AMIGO"/>
+              </type>
+            </variable>
+            <variable name="PID_SAFE0">
+              <type>
+                <derived name="PID_SAFE"/>
+              </type>
+            </variable>
+          </localVars>
+        </interface>
+        <body>
+          <LD>
+            <block localId="1" typeName="RTC_EXTRACT_ud" instanceName="RTC_EXTRACT0" height="340" width="122">
+              <position x="70" y="50"/>
+              <inputVariables/>
+              <inOutVariables/>
+              <outputVariables>
+                <variable formalParameter="xValid">
+                  <connectionPointOut>
+                    <relPosition x="122" y="30"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="xNewSecond">
+                  <connectionPointOut>
+                    <relPosition x="122" y="50"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="dtCurrent">
+                  <connectionPointOut>
+                    <relPosition x="122" y="70"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="uiYear">
+                  <connectionPointOut>
+                    <relPosition x="122" y="90"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="uiMonth">
+                  <connectionPointOut>
+                    <relPosition x="122" y="110"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="uiDay">
+                  <connectionPointOut>
+                    <relPosition x="122" y="130"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="uiDayOfYear">
+                  <connectionPointOut>
+                    <relPosition x="122" y="150"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="uiDayOfWeek">
+                  <connectionPointOut>
+                    <relPosition x="122" y="170"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="uiHour">
+                  <connectionPointOut>
+                    <relPosition x="122" y="190"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="uiMinute">
+                  <connectionPointOut>
+                    <relPosition x="122" y="210"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="uiSecond">
+                  <connectionPointOut>
+                    <relPosition x="122" y="230"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="uiDaysInMonth">
+                  <connectionPointOut>
+                    <relPosition x="122" y="250"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="uiDaysInYear">
+                  <connectionPointOut>
+                    <relPosition x="122" y="270"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="xIsLeapYear">
+                  <connectionPointOut>
+                    <relPosition x="122" y="290"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="udiSecOfDay">
+                  <connectionPointOut>
+                    <relPosition x="122" y="310"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="udiMinOfDay">
+                  <connectionPointOut>
+                    <relPosition x="122" y="330"/>
+                  </connectionPointOut>
+                </variable>
+              </outputVariables>
+            </block>
+            <comment localId="2" height="330" width="180">
+              <position x="310" y="50"/>
+              <content>
+                <xhtml:p><![CDATA[this fb use the plc rtc to extract time and date parameters, you can modify its output variable to what you need only.
+bilal chemloul great you,]]></xhtml:p>
+              </content>
+            </comment>
+            <block localId="3" typeName="WORK_TIME" instanceName="WORK_TIME0" height="190" width="175">
+              <position x="70" y="430"/>
+              <inputVariables>
+                <variable formalParameter="HOUR_EN">
+                  <connectionPointIn>
+                    <relPosition x="0" y="40"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="HOUR_OUT">
+                  <connectionPointIn>
+                    <relPosition x="0" y="70"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="DAY_F">
+                  <connectionPointIn>
+                    <relPosition x="0" y="110"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="MONTH_F">
+                  <connectionPointIn>
+                    <relPosition x="0" y="140"/>
+                  </connectionPointIn>
+                </variable>
+              </inputVariables>
+              <inOutVariables/>
+              <outputVariables>
+                <variable formalParameter="HOUR">
+                  <connectionPointOut>
+                    <relPosition x="175" y="40"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="DayOfWeek">
+                  <connectionPointOut>
+                    <relPosition x="175" y="70"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="Day">
+                  <connectionPointOut>
+                    <relPosition x="175" y="110"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="MONTH">
+                  <connectionPointOut>
+                    <relPosition x="175" y="140"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="time_of_work">
+                  <connectionPointOut>
+                    <relPosition x="175" y="170"/>
+                  </connectionPointOut>
+                </variable>
+              </outputVariables>
+            </block>
+            <comment localId="4" height="180" width="370">
+              <position x="310" y="430"/>
+              <content>
+                <xhtml:p><![CDATA[this fb use the RTC_EXTRACT_ud fb to calculate time and date of work , you can just enter entry and leave hour and it will give you currient hour , date and worktime status ,the weekends and official free days are precounted, you can add an exceptional free day date with day_f and month_f inputs.
+bilal chemloul great you,]]></xhtml:p>
+              </content>
+            </comment>
+            <block localId="5" typeName="FLOWMETER_PULSE" instanceName="functionBlock00" height="100" width="160">
+              <position x="70" y="690"/>
+              <inputVariables>
+                <variable formalParameter="pulse">
+                  <connectionPointIn>
+                    <relPosition x="0" y="30"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="rst">
+                  <connectionPointIn>
+                    <relPosition x="0" y="50"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="COUNT_PV">
+                  <connectionPointIn>
+                    <relPosition x="0" y="70"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="sense">
+                  <connectionPointIn>
+                    <relPosition x="0" y="90"/>
+                  </connectionPointIn>
+                </variable>
+              </inputVariables>
+              <inOutVariables/>
+              <outputVariables>
+                <variable formalParameter="COUNT_FIT">
+                  <connectionPointOut>
+                    <relPosition x="160" y="30"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="COUNT_CV">
+                  <connectionPointOut>
+                    <relPosition x="160" y="50"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="rVolume">
+                  <connectionPointOut>
+                    <relPosition x="160" y="70"/>
+                  </connectionPointOut>
+                </variable>
+              </outputVariables>
+            </block>
+            <block localId="6" typeName="BLINKING" instanceName="BLINKING0" height="60" width="80">
+              <position x="70" y="970"/>
+              <inputVariables>
+                <variable formalParameter="prd">
+                  <connectionPointIn>
+                    <relPosition x="0" y="40"/>
+                  </connectionPointIn>
+                </variable>
+              </inputVariables>
+              <inOutVariables/>
+              <outputVariables>
+                <variable formalParameter="y">
+                  <connectionPointOut>
+                    <relPosition x="80" y="40"/>
+                  </connectionPointOut>
+                </variable>
+              </outputVariables>
+            </block>
+            <block localId="7" typeName="my_counter_UD" instanceName="my_counter_UD0" height="100" width="120">
+              <position x="70" y="820"/>
+              <inputVariables>
+                <variable formalParameter="CU">
+                  <connectionPointIn>
+                    <relPosition x="0" y="30"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="Reset">
+                  <connectionPointIn>
+                    <relPosition x="0" y="50"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="PV">
+                  <connectionPointIn>
+                    <relPosition x="0" y="70"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="SV">
+                  <connectionPointIn>
+                    <relPosition x="0" y="90"/>
+                  </connectionPointIn>
+                </variable>
+              </inputVariables>
+              <inOutVariables/>
+              <outputVariables>
+                <variable formalParameter="Q">
+                  <connectionPointOut>
+                    <relPosition x="120" y="30"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="CV">
+                  <connectionPointOut>
+                    <relPosition x="120" y="50"/>
+                  </connectionPointOut>
+                </variable>
+              </outputVariables>
+            </block>
+            <block localId="8" typeName="RELAY_TEST_AMIGO" instanceName="RELAY_TEST0" height="220" width="190">
+              <position x="70" y="1070"/>
+              <inputVariables>
+                <variable formalParameter="START">
+                  <connectionPointIn>
+                    <relPosition x="0" y="30"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="RESET">
+                  <connectionPointIn>
+                    <relPosition x="0" y="50"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="ABORT">
+                  <connectionPointIn>
+                    <relPosition x="0" y="70"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="PV">
+                  <connectionPointIn>
+                    <relPosition x="0" y="90"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="SP">
+                  <connectionPointIn>
+                    <relPosition x="0" y="110"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="TS">
+                  <connectionPointIn>
+                    <relPosition x="0" y="130"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="Relay_High">
+                  <connectionPointIn>
+                    <relPosition x="0" y="150"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="RELAY_LOW">
+                  <connectionPointIn>
+                    <relPosition x="0" y="170"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="HYSTERES">
+                  <connectionPointIn>
+                    <relPosition x="0" y="190"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="MX_TIM">
+                  <connectionPointIn>
+                    <relPosition x="0" y="210"/>
+                  </connectionPointIn>
+                </variable>
+              </inputVariables>
+              <inOutVariables/>
+              <outputVariables>
+                <variable formalParameter="Control_Out">
+                  <connectionPointOut>
+                    <relPosition x="190" y="30"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="KP">
+                  <connectionPointOut>
+                    <relPosition x="190" y="50"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="KI">
+                  <connectionPointOut>
+                    <relPosition x="190" y="70"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="KD">
+                  <connectionPointOut>
+                    <relPosition x="190" y="90"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="BUSY">
+                  <connectionPointOut>
+                    <relPosition x="190" y="110"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="DONE">
+                  <connectionPointOut>
+                    <relPosition x="190" y="130"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="ERROR">
+                  <connectionPointOut>
+                    <relPosition x="190" y="150"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="ERROR_CODE">
+                  <connectionPointOut>
+                    <relPosition x="190" y="170"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="RT">
+                  <connectionPointOut>
+                    <relPosition x="190" y="190"/>
+                  </connectionPointOut>
+                </variable>
+              </outputVariables>
+            </block>
+            <block localId="9" typeName="PID_SAFE" instanceName="PID_SAFE0" height="200" width="150">
+              <position x="80" y="1340"/>
+              <inputVariables>
+                <variable formalParameter="Enable">
+                  <connectionPointIn>
+                    <relPosition x="0" y="30"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="SP">
+                  <connectionPointIn>
+                    <relPosition x="0" y="50"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="PV">
+                  <connectionPointIn>
+                    <relPosition x="0" y="70"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="Kp">
+                  <connectionPointIn>
+                    <relPosition x="0" y="90"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="Ki">
+                  <connectionPointIn>
+                    <relPosition x="0" y="110"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="Kd">
+                  <connectionPointIn>
+                    <relPosition x="0" y="130"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="Out_Max">
+                  <connectionPointIn>
+                    <relPosition x="0" y="150"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="Out_Min">
+                  <connectionPointIn>
+                    <relPosition x="0" y="170"/>
+                  </connectionPointIn>
+                </variable>
+                <variable formalParameter="TS">
+                  <connectionPointIn>
+                    <relPosition x="0" y="190"/>
+                  </connectionPointIn>
+                </variable>
+              </inputVariables>
+              <inOutVariables/>
+              <outputVariables>
+                <variable formalParameter="Pidout">
+                  <connectionPointOut>
+                    <relPosition x="150" y="30"/>
+                  </connectionPointOut>
+                </variable>
+                <variable formalParameter="ERROR_OUT">
+                  <connectionPointOut>
+                    <relPosition x="150" y="50"/>
+                  </connectionPointOut>
+                </variable>
+              </outputVariables>
+            </block>
+          </LD>
+        </body>
+      </pou>
+      <pou name="FLOWMETER_PULSE" pouType="functionBlock">
+        <interface>
+          <localVars>
+            <variable name="flow_count">
+              <type>
+                <derived name="my_counter_UD"/>
+              </type>
+            </variable>
+          </localVars>
+          <inputVars>
+            <variable name="pulse">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="rst">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+          </inputVars>
+          <outputVars>
+            <variable name="COUNT_FIT">
+              <type>
+                <BOOL/>
+              </type>
+            </variable>
+            <variable name="COUNT_CV">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+          </outputVars>
+          <inputVars>
+            <variable name="COUNT_PV">
+              <type>
+                <UDINT/>
+              </type>
+            </variable>
+          </inputVars>
+          <outputVars>
+            <variable name="rVolume">
+              <type>
+                <REAL/>
+              </type>
+            </variable>
+          </outputVars>
+          <inputVars>
+            <variable name="sense">
+              <type>
+                <REAL/>
+              </type>
+            </variable>
+          </inputVars>
+        </interface>
+        <body>
+          <ST>
+            <xhtml:p><![CDATA[flow_count(
+     CU := pulse(*BOOL*),
+     Reset := rst (*BOOL*),
+     PV :=COUNT_PV (*UDINT*),
+     SV :=COUNT_CV(*UDINT*),
+     Q => COUNT_FIT (*BOOL*),
+     CV =>COUNT_CV (*UDINT*));
+     
+
+rVolume := UDINT_TO_REAL(COUNT_CV) / sense ;]]></xhtml:p>
+          </ST>
+        </body>
+      </pou>
+    </pous>
+  </types>
+  <instances>
+    <configurations>
+      <configuration name="Config0">
+        <resource name="Res0">
+          <task name="task0" priority="0" interval="T#20ms">
+            <pouInstance name="instance0" typeName="FBs_PRESENTATION"/>
+          </task>
+        </resource>
+      </configuration>
+    </configurations>
+  </instances>
+</project>
